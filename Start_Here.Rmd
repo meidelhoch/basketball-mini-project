@@ -1,0 +1,253 @@
+---
+title: "Start here ..."
+author: "Marc and Tehmi"
+date: "`r format(Sys.Date(), ' %B %d %Y')`"
+output:
+  html_document:
+runtime: shiny
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  size = "small",
+  collapse = TRUE,
+  comment = NA,
+  warning = FALSE,
+  message = FALSE,
+  error = TRUE,
+  eval = TRUE
+) # change it to TRUE
+
+# Install necessary packages
+# install.packages(c("shiny", "shinythemes", "shinyWidgets", "leaflet", "tidyverse", "janitor", "DT", "maps", "maptools", "sp"))
+
+library(shiny)
+library(shinythemes)
+library(shinyWidgets)
+library(leaflet)
+library(tidyverse)
+library(janitor)
+library(DT)
+library(maps)
+library(maptools)
+library(sp)
+library(tidyverse)
+library(purrr)
+library(rvest)
+library(polite)
+library(readr)
+library(plotly)
+
+# Link to shiny app: https://eidelhochm.shinyapps.io/basketball_app/
+
+```
+
+
+
+```{r, eval=FALSE, echo=FALSE}
+# load data
+
+url_part_1 <- "https://www.basketball-reference.com/teams/"
+url_part_2 <- "/2023.html"
+
+
+# vector to index through
+teams <- c("ATL", "BOS", "BRK", "CHO", "CHI", "CLE", "DAL", "DEN", "DET", "GSW", "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK", "OKC", "ORL", "PHI", "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS")
+
+# functions for reading through pages of tables - Great job!
+pull_data <- function(team_name) {
+  url_to_use <- str_glue({url_part_1}, {team_name}, {url_part_2})
+  data_to_use <- read_html(url_to_use) %>%
+    html_nodes(css = "#per_game") %>%
+    html_table()
+  tibble_data <- data_to_use[[1]] %>%
+    mutate(team = team_name)
+}
+
+pull_data_roster <- function(team_name) {
+  url_to_use <- str_glue({url_part_1}, {team_name}, {url_part_2})
+  data_to_use <- read_html(url_to_use) %>%
+    html_nodes(css = "#roster") %>%
+    html_table()
+  tibble_data <- data_to_use[[1]]
+}
+
+
+# uses map and the function we wrote to pull in data from every team
+all_data <- purrr::map(teams, .f = pull_data)
+all_data_roster <- purrr::map(teams, .f = pull_data_roster)
+
+
+
+all_data_combined <- do.call(rbind, all_data)
+all_data_roster_combined <- do.call(rbind, all_data_roster)
+
+# write into CSV (so we don't have to web scrape every time and can avoid 429 error)
+write_csv(all_data_combined, "all_data.csv")
+write_csv(all_data_roster_combined, "all_data_roster.csv")
+```
+
+
+
+```{r, echo=FALSE}
+# clean data
+
+all_data_from_csv <- read_csv("all_data.csv")
+roster_data_from_csv <- read_csv("all_data_roster.csv")
+# brought in from another page on sportsreference.com where you can download data as a csv
+salary_data <- read_csv("salarydatareal.csv")
+
+all_data_clean <- all_data_from_csv %>%
+  relocate(team, .before = Player) %>%
+  select(2:ncol(all_data_from_csv))
+
+all_data_clean <- all_data_clean %>% rename("name" = "Player", "age" = "Age", "games" = "G", "games_started" = "GS", "minutes_played" = "MP", "field_goals" = "FG", "field_goal_attempts" = "FGA", "field_goal_percentage" = "FG%", "three_pointers" = "3P", "three_point_attempts" = "3PA", "three_point_percentage" = "3P%", "two_pointers" = "2P", "two_point_attempts" = "2PA", "two_point_percentage" = "2P%", "effective_field_goal_percentage" = "eFG%", "free_throws_made" = "FT", "free_throws_attempted" = "FTA", "free_throw_percentage" = "FT%", "offensive_rebounds" = "ORB", "defensive_rebounds" = "DRB", "total_rebounds" = "TRB", "assists" = "AST", "steals" = "STL", "blocks" = "BLK", "turnovers" = "TOV", "fouls" = "PF", "points" = "PTS")
+
+all_data_clean <- all_data_clean %>% mutate(team = str_replace_all(team, "ATL", "Atlanta Hawks"), team = str_replace_all(team, "BOS", "Boston Celtics"), team = str_replace_all(team, "BRK", "Brooklyn Nets"), team = str_replace_all(team, "CHO", "Charlotte Hornets"), team = str_replace_all(team, "CHI", "Chicago Bulls"), team = str_replace_all(team, "CLE", "Cleveland Cavaliers"), team = str_replace_all(team, "DAL", "Dallas Mavericks"), team = str_replace_all(team, "DEN", "Denver Nuggets"), team = str_replace_all(team, "DET", "Detroit Pistons"), team = str_replace_all(team, "GSW", "Golden State Warriors"), team = str_replace_all(team, "HOU", "Houston Rockets"), team = str_replace_all(team, "IND", "Indiana Pacers"), team = str_replace_all(team, "LAC", "LA Clippers"), team = str_replace_all(team, "LAL", "LA Lakers"), team = str_replace_all(team, "MEM", "Memphis Grizzlies"), team = str_replace_all(team, "MIA", "Miami Heat"), team = str_replace_all(team, "MIL", "Milwaukee Bucks"), team = str_replace_all(team, "MIN", "Minnesota Timberwolves"), team = str_replace_all(team, "NOP", "New Orleans Pelicans"), team = str_replace_all(team, "NYK", "New York Knicks"), team = str_replace_all(team, "OKC", "Oklahoma City Thunder"), team = str_replace_all(team, "ORL", "Orlando Magic"), team = str_replace_all(team, "PHI", "Philadelphia 76ers"), team = str_replace_all(team, "PHO", "Phoenix Suns"), team = str_replace_all(team, "POR", "Portland Trailblazers"), team = str_replace_all(team, "SAC", "Sacramento Kings"), team = str_replace_all(team, "SAS", "San Antonio Spurs"), team = str_replace_all(team, "TOR", "Toronto Raptors"), team = str_replace_all(team, "UTA", "Utah Jazz"), team = str_replace_all(team, "WAS", "Washington Wizards"))
+
+# regex pattern for only keeping schools after a comma
+pattern <- "^.*, "
+pattern2 <- "\\(TW\\)"
+
+# also replaced players who went to multiple colleges with the school they graduated from
+roster_data_clean <- roster_data_from_csv %>%
+  select(c(2, 3, 9)) %>%
+  rename("name" = "Player", "position" = "Pos", "college" = "College") %>%
+  mutate(college = str_replace_all(college, pattern = pattern, "")) %>%
+  mutate(name = str_replace_all(name, pattern = pattern2, ""))
+
+
+all_data_clean2 <- full_join(all_data_clean, roster_data_clean, by = "name") %>% relocate(position, .before = age)
+
+salary_data_clean <- salary_data %>%
+  select(c(1, 2)) %>%
+  rename("name" = "Player", "salary" = "2022-23") %>%
+  mutate(salary = parse_number(salary))
+
+all_data_clean3 <- full_join(all_data_clean2, salary_data_clean, by = "name")
+
+# We are only interested in players who have played at least 7 games and at least 5 minutes per game
+qualifying_data <- all_data_clean3 %>%
+  filter(games > 7, minutes_played > 5) %>%
+  mutate(college = replace_na(college, "No College/Unknown"))
+
+# Some duplicated rows appeared when joining the data so removing those rows
+qualifying_data1 <- qualifying_data %>% unique()
+
+write_csv(qualifying_data1, "qualifying_data1.csv")
+```
+
+
+
+```{r, echo=FALSE}
+# data for creating bar plot
+college3 <- qualifying_data1 %>%
+  group_by(college) %>%
+  summarize(count = n(), mean_salary = mean(salary, na.rm = TRUE)) %>%
+  ungroup()
+
+write_csv(college3, "college3.csv")
+```
+
+
+
+```{r Table and Graph}
+ui <- navbarPage(
+  theme = shinytheme("cerulean"), "Mini project 3",
+  windowTitle = "NBA Stats!",
+  tabPanel(
+    "Welcome!",
+    fluidPage(
+      uiOutput("text")
+    )
+  ),
+  tabPanel(
+    "Individual NBA Players",
+    fluidPage(
+      varSelectInput(inputId = "x", label = "Select X-Axis Variable", data = qualifying_data1 %>% select(c(-1, -2, -3, -30)), selected = names(qualifying_data1)[1], multiple = FALSE),
+      varSelectInput(inputId = "y", label = "Select Y-Axis Variable", data = qualifying_data1 %>% select(c(-1, -2, -3, -30)), selected = names(qualifying_data1)[1], multiple = FALSE),
+      checkboxInput(inputId = "color", label = "Color by Team", value = FALSE),
+      plotOutput("plot", height = 600, click = "my_click"),
+      dataTableOutput("table")
+    )
+  ),
+  tabPanel(
+    "Stats By Team",
+    fluidPage(
+      radioButtons("team_chosen", "Pick an NBA Team: ", choices = unique(qualifying_data1$team), inline = TRUE),
+      varSelectInput(inputId = "x2", label = "Select X-Axis Variable", data = qualifying_data1 %>% select(c(-1, -2, -3, -30)), selected = names(qualifying_data1)[1], multiple = FALSE),
+      varSelectInput(inputId = "y2", label = "Select Y-Axis Variable", data = qualifying_data1 %>% select(c(-1, -2, -3, -30)), selected = names(qualifying_data1)[1], multiple = FALSE),
+      plotlyOutput("plot2")
+    )
+  ),
+  tabPanel(
+    "Players From Colleges",
+    fluidPage(
+      sidebarLayout(
+        sidebarPanel(
+          # Slider input for selecting the number of bars
+          sliderInput("num_bars", "Number of Colleges", min = 1, max = 30, value = 5),
+          checkboxInput("no_college", "Check to Remove No College/Unknown", value = FALSE)
+        ),
+        mainPanel(
+          plotlyOutput("barplot")
+        )
+      )
+    )
+  )
+)
+
+
+
+
+server <- function(input, output) {
+  output$plot <- renderPlot({
+    g <- ggplot(qualifying_data1, aes(x = !!(input$x), y = !!(input$y)))
+    if (input$color) {
+      g + geom_point(aes(color = team))
+    } else {
+      g + geom_point()
+    }
+  })
+  output$plot2 <- renderPlotly({
+    h <- ggplot(qualifying_data1 %>% filter(team == input$team_chosen), aes(x = !!(input$x2), y = !!(input$y2), label = name, text = paste("position: ", position, "\n", "age: ", age, "\n", "college: ", college, "\n", sep = ""))) +
+      geom_point()
+    h
+  })
+
+  output$table <- renderDataTable({
+    near_data <- nearPoints(qualifying_data1, input$my_click)
+    near_data
+  })
+
+
+  output$barplot <- renderPlotly({
+    if (input$no_college) {
+      # Generate the bar plot using ggplot2
+      w <- ggplot(college3 %>% filter(college != "No College/Unknown") %>% slice_max(count, n = input$num_bars, with_ties = FALSE), aes(x = count, y = college, label = mean_salary)) +
+        geom_col(fill = "steelblue") 
+      w
+    } else {
+      z <- ggplot(college3 %>% slice_max(count, n = input$num_bars, with_ties = FALSE), aes(x = count, y = college, label = mean_salary)) +
+        geom_col(fill = "steelblue") 
+      z
+    }
+  })
+
+  output$text <- renderUI({
+    HTML("<h2>Are You Interested in The NBA?</h2>
+          <p>Check out the Individual Players tab to learn which players are the best at various stats. And learn how those stats might be related to eachother! Not suprisingly,we see that minutes played is related to how many points scored. But did you know theres also a relationship between turnovers and free throws made?</p>
+          <p>Want to know how these stats are broken down at a team level? Go to the Stats By Team tab to interact with each team in the league and hover over the graph to see which player is represented by each data point. </p>
+          <p>Finally, are you interested in which college will give you the best shot of making it to the NBA? Go to the Players From Colleges tab and select the amount of schools you want to view to see how many players currently in the NBA graduated from each school. Additionally, hover over the school to learn the average salary of current NBA graduates from that college! </p>
+          <p>We hope you learn a lot from our interactive page!</p>")
+  })
+}
+
+# You can modify the height to avoid scrolling
+shinyApp(ui, server, options = list(height = 600))
+```
+
