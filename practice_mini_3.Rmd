@@ -1,6 +1,6 @@
 ---
 title: "Practice Mini 3"
-author: " Tehmi"
+author: "Marc and Tehmi"
 date: "`r format(Sys.Date(), ' %B %d %Y')`"
 output:
   html_document:
